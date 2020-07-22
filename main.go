@@ -15,6 +15,9 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	"github.com/gin-gonic/gin"
+	"github.com/zsais/go-gin-prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -47,16 +50,39 @@ func main() {
 		terminationDelay int
 		numCPUBurn       string
 	)
-	flag.StringVar(&listenAddr, "listen-addr", ":8080", "server listen address")
+	flag.StringVar(&listenAddr, "listen-addr", ":8443", "server listen address")
 	flag.IntVar(&terminationDelay, "termination-delay", defaultTerminationDelay, "termination delay in seconds")
 	flag.StringVar(&numCPUBurn, "cpu-burn", "", "burn specified number of cpus (number or 'all')")
 	flag.Parse()
 
 	rand.Seed(time.Now().UnixNano())
 
+	r := gin.New()
+
+	p := ginprometheus.NewPrometheus("gin")
+	p.Use(r)
+
+	r.LoadHTMLFiles("index.html")
+	r.GET("/test", func(c *gin.Context) {
+		c.HTML(
+			// Set the HTTP status to 200 (OK)
+			200,
+			// Use the index.html template
+			"index.html",
+			// Pass the data that the page uses (in this case, 'title')
+			gin.H{
+				"title": "Main website",
+			},
+		)
+
+	})
+
+	r.Run(":29090")
+
 	router := http.NewServeMux()
-	router.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./"))))
-	router.HandleFunc("/color", getColor)
+	router.Handle("/metrics", promhttp.Handler())
+	//router.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("./"))))
+	//router.HandleFunc("/color", getColor)
 
 	server := &http.Server{
 		Addr:    listenAddr,
